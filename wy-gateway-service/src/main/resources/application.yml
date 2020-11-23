@@ -1,0 +1,30 @@
+server:
+  port: 8000
+spring:
+  application:
+    name: wy-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: "127.0.0.1:8848"
+    gateway:
+      routes:
+        - id: login
+          uri: lb://wy-authentication
+          predicates:
+            - Path=/api/login
+          filters:
+            - StripPrefix=1
+        - id: authentication
+          uri: lb://wy-authentication
+          predicates:
+            - Path=/api/wy-authentication/**
+          filters:
+            - StripPrefix=2
+        - id: organizaiton
+          uri: lb://wy-organization
+          predicates:
+            - Path=/api/wy-organization/**
+          filters:
+            - StripPrefix=2
+
