@@ -1,5 +1,7 @@
 package com.wenyu7980.gateway;
 
+import com.wenyu7980.authentication.api.service.PermissionInternalService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -20,12 +22,15 @@ import java.util.List;
  */
 @Component
 public class AuthenticationFilter implements GlobalFilter, Ordered {
+    @Autowired
+    private PermissionInternalService permissionInternalService;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         List<PathContainer.Element> elements = exchange.getRequest().getPath().elements();
         String path = exchange.getRequest().getPath().value();
         ServerHttpResponse response = exchange.getResponse();
+        permissionInternalService.getList(false);
         DataBuffer buffer = response.bufferFactory().wrap("权限不足".getBytes(StandardCharsets.UTF_8));
         response.setStatusCode(HttpStatus.UNAUTHORIZED);
         return chain.filter(exchange);
