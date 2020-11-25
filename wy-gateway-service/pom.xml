@@ -24,6 +24,11 @@
             <artifactId>wy-authentication-api</artifactId>
             <version>1.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.wenyu7980</groupId>
+            <artifactId>wy-common-feign-client</artifactId>
+            <version>1.0.0</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
