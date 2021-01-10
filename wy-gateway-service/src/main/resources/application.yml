@@ -1,6 +1,15 @@
 server:
   port: 8000
+
+application:
+  rsa:
+    open: true
+    timeout: 1
 spring:
+  redis:
+    host: localhost
+    port: 6379
+    password: password
   application:
     name: wy-gateway
   cloud:
@@ -9,12 +18,12 @@ spring:
         server-addr: "127.0.0.1:8848"
     gateway:
       routes:
-        - id: login
-          uri: lb://wy-authentication
-          predicates:
-            - Path=/api/login
-          filters:
-            - StripPrefix=1
+        #        - id: login
+        #          uri: lb://wy-authentication
+        #          predicates:
+        #            - Path=/api/login
+        #          filters:
+        #            - StripPrefix=1
         - id: authentication
           uri: lb://wy-authentication
           predicates:
