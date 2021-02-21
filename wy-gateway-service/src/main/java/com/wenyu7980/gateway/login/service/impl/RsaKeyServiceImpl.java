@@ -1,5 +1,6 @@
 package com.wenyu7980.gateway.login.service.impl;
 
+import com.wenyu7980.common.exceptions.code403.LoginFailException;
 import com.wenyu7980.gateway.login.service.RsaKeyService;
 import org.apache.commons.codec.binary.Base64;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,9 @@ public class RsaKeyServiceImpl implements RsaKeyService {
     public String decode(String code, String data) throws IOException, GeneralSecurityException {
         byte[] inputByte = Base64.decodeBase64(data.getBytes("UTF-8"));
         String privateKey = redisTemplate.opsForValue().get(code);
+        if (privateKey == null) {
+            throw new LoginFailException("登录失败");
+        }
         byte[] bytes = Base64.decodeBase64(privateKey);
         PrivateKey rsa = KeyFactory.getInstance(RSA_ALGORITHM).generatePrivate(new PKCS8EncodedKeySpec(bytes));
         Cipher cipher = Cipher.getInstance(RSA_ALGORITHM);

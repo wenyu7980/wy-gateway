@@ -1,7 +1,12 @@
 package com.wenyu7980.gateway;
 
 import com.wenyu7980.authentication.api.domain.Permission;
-import com.wenyu7980.authentication.api.service.PermissionInternalService;
+import com.wenyu7980.common.authentication.util.AuthenticationInfo;
+import com.wenyu7980.common.authentication.util.AuthenticationRequest;
+import com.wenyu7980.common.gson.adapter.GsonUtil;
+import com.wenyu7980.gateway.filter.component.FilterComponent;
+import com.wenyu7980.gateway.login.entity.TokenEntity;
+import com.wenyu7980.gateway.login.service.TokenService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -10,14 +15,16 @@ import org.springframework.cloud.gateway.route.Route;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Optional;
 
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
 
@@ -28,51 +35,59 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 @Component
 public class AuthenticationFilter implements GlobalFilter, Ordered {
     @Autowired
-    private PermissionInternalService permissionInternalService;
+    private FilterComponent filterComponent;
+    @Autowired
+    private TokenService tokenService;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        AntPathMatcher matcher = new AntPathMatcher();
+        // 获取token
+        Optional<String> optional = exchange.getRequest().getHeaders().get("token").stream().findFirst();
         Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
         String serviceName = route.getUri().getHost();
-        String path = exchange.getRequest().getPath().value();
+        String path = exchange.getRequest().getPath().subPath(4).value();
         String method = exchange.getRequest().getMethodValue();
-        //        if ("login".equals(route.getId())) {
-        //            DataBufferFactory bufferFactory = exchange.getResponse().bufferFactory();
-        //            return chain.filter(exchange.mutate().response(new ServerHttpResponseDecorator(exchange.getResponse()) {
-        //                @Override
-        //                public Mono<Void> writeWith(Publisher<? extends DataBuffer> body) {
-        //                    if (body instanceof Flux) {
-        //                        Flux<? extends DataBuffer> fluxBody = Flux.from(body);
-        //                        return super.writeWith(fluxBody.map(dataBuffer -> {
-        //                            byte[] content = new byte[dataBuffer.readableByteCount()];
-        //                            dataBuffer.read(content);
-        //                            DataBufferUtils.release(dataBuffer);
-        //                            String s = new String(content, Charset.forName("UTF-8"));
-        //                            LoginResult result = GsonUtil.gson().fromJson(s, LoginResult.class);
-        //                            byte[] uppedContent = s.getBytes();
-        //                            return bufferFactory.wrap(uppedContent);
-        //                        }));
-        //                    }
-        //                    return super.writeWith(body);
-        //                }
-        //            }).build());
-        //        }
-        List<Permission> permissions = permissionInternalService.getList(false);
-        for (Permission permission : permissions) {
-            if (serviceName.equals(permission.getServiceName()) && matcher.match(permission.getPath(), path) && method
-              .equals(permission.getMethod()) && !permission.getCheck()) {
-                return chain.filter(exchange);
+        Permission permission = filterComponent.getPermission(serviceName, method, path)
+          .orElseThrow(() -> new RuntimeException("不能存在"));
+        if (!permission.getCheck()) {
+            String token = optional.get();
+            Optional<TokenEntity> optionalTokenEntity = tokenService.findOptionalById(token);
+            if (optionalTokenEntity.isPresent()) {
+                return chain.filter(
+                  exchange.mutate().request(buildRequest(exchange.getRequest(), optionalTokenEntity.get())).build());
             }
+            return chain.filter(exchange.mutate().build());
         }
-        ServerHttpResponse response = exchange.getResponse();
-        DataBuffer buffer = response.bufferFactory().wrap("权限不足".getBytes(StandardCharsets.UTF_8));
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        return response.setComplete();
+        if (!optional.isPresent()) {
+            ServerHttpResponse response = exchange.getResponse();
+            DataBuffer buffer = response.bufferFactory().wrap("未登录".getBytes(StandardCharsets.UTF_8));
+            response.setStatusCode(HttpStatus.FORBIDDEN);
+            return response.setComplete();
+        }
+        String token = optional.get();
+        Optional<TokenEntity> optionalTokenEntity = tokenService.findOptionalById(token);
+        if (!optionalTokenEntity.isPresent()) {
+            ServerHttpResponse response = exchange.getResponse();
+            DataBuffer buffer = response.bufferFactory().wrap("未登录".getBytes(StandardCharsets.UTF_8));
+            response.setStatusCode(HttpStatus.FORBIDDEN);
+            return response.setComplete();
+        }
+        TokenEntity tokenEntity = optionalTokenEntity.get();
+        // 权限校验
+        return chain.filter(exchange.mutate().build());
     }
 
     @Override
     public int getOrder() {
         return NettyWriteResponseFilter.WRITE_RESPONSE_FILTER_ORDER - 1;
     }
+
+    private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, TokenEntity entity) {
+        ServerHttpRequest request = httpRequest.mutate().header("authInfo",
+          GsonUtil.gson().toJson(new AuthenticationInfo(entity.getUserId(), new HashSet<>(), new HashSet<>(),
+            // TODO,path要使用权限中的path（包含有通配符）
+            new AuthenticationRequest("serviceName", "method", "path")))).build();
+        return new ServerHttpRequestDecorator(request);
+    }
+
 }

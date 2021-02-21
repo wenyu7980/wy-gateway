@@ -1,0 +1,10 @@
+application:
+  rsa:
+    open: true
+    timeout: 10 # 10分钟有效期
+spring:
+  redis:
+    host: 192.168.3.200
+    port: 6379
+    password: password
+    database: 0
