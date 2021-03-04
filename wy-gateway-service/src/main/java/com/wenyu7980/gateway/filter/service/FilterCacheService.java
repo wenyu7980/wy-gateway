@@ -1,6 +1,6 @@
 package com.wenyu7980.gateway.filter.service;
 
-import com.wenyu7980.authentication.api.domain.Permission;
+import com.wenyu7980.authentication.api.domain.PermissionInternal;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -15,5 +15,5 @@ public interface FilterCacheService {
      * @param supplier
      * @return
      */
-    List<Permission> getPermissions(Supplier<List<Permission>> supplier);
+    List<PermissionInternal> getPermissions(Supplier<List<PermissionInternal>> supplier);
 }

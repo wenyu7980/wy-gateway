@@ -1,6 +1,6 @@
 package com.wenyu7980.gateway.filter.component;
 
-import com.wenyu7980.authentication.api.domain.Permission;
+import com.wenyu7980.authentication.api.domain.PermissionInternal;
 
 import java.util.Optional;
 
@@ -16,5 +16,5 @@ public interface FilterComponent {
      * @param path
      * @return
      */
-    Optional<Permission> getPermission(String serviceName, String method, String path);
+    Optional<PermissionInternal> getPermission(String serviceName, String method, String path);
 }

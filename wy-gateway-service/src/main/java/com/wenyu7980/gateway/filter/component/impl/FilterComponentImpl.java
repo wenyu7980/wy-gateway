@@ -1,6 +1,6 @@
 package com.wenyu7980.gateway.filter.component.impl;
 
-import com.wenyu7980.authentication.api.domain.Permission;
+import com.wenyu7980.authentication.api.domain.PermissionInternal;
 import com.wenyu7980.authentication.api.service.PermissionInternalService;
 import com.wenyu7980.gateway.filter.component.FilterComponent;
 import com.wenyu7980.gateway.filter.service.FilterCacheService;
@@ -26,15 +26,15 @@ public class FilterComponentImpl implements FilterComponent {
     private FilterCacheService filterCacheService;
 
     @Override
-    public Optional<Permission> getPermission(String serviceName, String method, String path) {
-        List<Permission> permissions = filterCacheService
+    public Optional<PermissionInternal> getPermission(String serviceName, String method, String path) {
+        List<PermissionInternal> permissions = filterCacheService
           .getPermissions(() -> this.sorted(this.permissionInternalService.getList(null)));
         return permissions.stream().filter(
           v -> Objects.equals(serviceName, v.getServiceName()) && Objects.equals(method, v.getMethod()) && MATCHER
             .match(v.getPath(), path)).findFirst();
     }
 
-    private List<Permission> sorted(List<Permission> permissions) {
+    private List<PermissionInternal> sorted(List<PermissionInternal> permissions) {
         return permissions.stream().sorted((v1, v2) -> {
             int serviceName = v1.getServiceName().compareTo(v2.getServiceName());
             if (serviceName != 0) {

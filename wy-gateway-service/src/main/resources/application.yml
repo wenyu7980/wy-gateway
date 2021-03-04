@@ -2,6 +2,13 @@ spring:
   cloud:
     gateway:
       routes:
+        - id: aggregation
+          uri: lb://wy-aggregation
+          predicates:
+            - Path=/api/**
+            - name: Aggregation
+          filters:
+            - StripPrefix=1
         - id: file
           uri: lb://wy-file
           predicates:
