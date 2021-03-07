@@ -50,8 +50,13 @@ public class FilterCacheRedis implements FilterCacheService {
     public List<PermissionInternal> getPermissions(Supplier<List<PermissionInternal>> supplier) {
         List<PermissionInternal> permissions = this.redisTemplate.opsForValue().get(KEY);
         if (permissions == null) {
-            permissions = supplier.get();
-            this.save(permissions);
+            synchronized (this) {
+                permissions = this.redisTemplate.opsForValue().get(KEY);
+                if (permissions == null) {
+                    permissions = supplier.get();
+                    this.save(permissions);
+                }
+            }
         }
         return permissions;
     }

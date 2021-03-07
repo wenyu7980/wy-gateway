@@ -7,11 +7,11 @@ import com.wenyu7980.common.gson.adapter.GsonUtil;
 import com.wenyu7980.gateway.filter.component.FilterComponent;
 import com.wenyu7980.gateway.login.entity.TokenEntity;
 import com.wenyu7980.gateway.login.service.TokenService;
+import com.wenyu7980.gateway.util.RequestUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.filter.NettyWriteResponseFilter;
-import org.springframework.cloud.gateway.route.Route;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -23,8 +23,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.HashSet;
 import java.util.Optional;
-
-import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
 
 /**
  *
@@ -39,23 +37,18 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        ServerHttpRequest request = exchange.getRequest();
         // 获取token
-        Optional<String> optional = exchange.getRequest().getHeaders().get("token").stream().findFirst();
-        Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
-        String serviceName = exchange.getRequest().getPath().subPath(3, 4).value();
-        String path = exchange.getRequest().getPath().subPath(4).value();
-        String method = exchange.getRequest().getMethodValue();
+        Optional<String> optional = RequestUtils.getHeader(request, "token");
+        String serviceName = RequestUtils.getServiceName(request);
+        String path = RequestUtils.getPathWithoutService(request);
+        String method = RequestUtils.getMethod(request);
         PermissionInternal permission = filterComponent.getPermission(serviceName, method, path)
-          .orElseThrow(() -> new RuntimeException("不能存在"));
+          .orElseThrow(() -> new RuntimeException("接口不存在"));
         if (!permission.getCheck()) {
-            String token = optional.get();
-            Optional<TokenEntity> optionalTokenEntity = tokenService.findOptionalById(token);
-            if (optionalTokenEntity.isPresent()) {
-                return chain.filter(exchange.mutate()
-                  .request(buildRequest(exchange.getRequest(), optionalTokenEntity.get(), permission.getPath()))
-                  .build());
-            }
-            return chain.filter(exchange.mutate().build());
+            return chain.filter(exchange.mutate().request(buildRequest(request,
+              optional.isPresent() ? tokenService.findOptionalById(optional.get()).orElse(null) : null, serviceName,
+              permission.getPath())).build());
         }
         if (!optional.isPresent()) {
             ServerHttpResponse response = exchange.getResponse();
@@ -71,7 +64,7 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         TokenEntity tokenEntity = optionalTokenEntity.get();
         // 权限校验
         return chain.filter(
-          exchange.mutate().request(buildRequest(exchange.getRequest(), tokenEntity, permission.getPath())).build());
+          exchange.mutate().request(buildRequest(request, tokenEntity, serviceName, permission.getPath())).build());
     }
 
     @Override
@@ -79,11 +72,10 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         return NettyWriteResponseFilter.WRITE_RESPONSE_FILTER_ORDER - 1;
     }
 
-    private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, TokenEntity entity, String path) {
-        String serviceName = httpRequest.getPath().subPath(3, 4).value();
-        ServerHttpRequest request = httpRequest.mutate().header("context",
-          GsonUtil.gson().toJson(new ContextInfo(entity.getUserId(), new HashSet<>(), new HashSet<>(),
-            // TODO,path要使用权限中的path（包含有通配符）
+    private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, TokenEntity entity, String serviceName,
+      String path) {
+        ServerHttpRequest request = httpRequest.mutate().header("context", GsonUtil.gson().toJson(
+          new ContextInfo(entity.getUserId(), new HashSet<>(), new HashSet<>(),
             new ContextRequest(serviceName, httpRequest.getMethodValue(), path)))).build();
         return new ServerHttpRequestDecorator(request);
     }

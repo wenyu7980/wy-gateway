@@ -28,7 +28,7 @@ public class FilterComponentImpl implements FilterComponent {
     @Override
     public Optional<PermissionInternal> getPermission(String serviceName, String method, String path) {
         List<PermissionInternal> permissions = filterCacheService
-          .getPermissions(() -> this.sorted(this.permissionInternalService.getList(null)));
+          .getPermissions(() -> this.sorted(this.permissionInternalService.getList()));
         return permissions.stream().filter(
           v -> Objects.equals(serviceName, v.getServiceName()) && Objects.equals(method, v.getMethod()) && MATCHER
             .match(v.getPath(), path)).findFirst();
