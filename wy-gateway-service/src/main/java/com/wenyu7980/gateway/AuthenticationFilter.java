@@ -51,8 +51,9 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
             String token = optional.get();
             Optional<TokenEntity> optionalTokenEntity = tokenService.findOptionalById(token);
             if (optionalTokenEntity.isPresent()) {
-                return chain.filter(
-                  exchange.mutate().request(buildRequest(exchange.getRequest(), optionalTokenEntity.get())).build());
+                return chain.filter(exchange.mutate()
+                  .request(buildRequest(exchange.getRequest(), optionalTokenEntity.get(), permission.getPath()))
+                  .build());
             }
             return chain.filter(exchange.mutate().build());
         }
@@ -69,7 +70,8 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         }
         TokenEntity tokenEntity = optionalTokenEntity.get();
         // 权限校验
-        return chain.filter(exchange.mutate().request(buildRequest(exchange.getRequest(), tokenEntity)).build());
+        return chain.filter(
+          exchange.mutate().request(buildRequest(exchange.getRequest(), tokenEntity, permission.getPath())).build());
     }
 
     @Override
@@ -77,13 +79,12 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         return NettyWriteResponseFilter.WRITE_RESPONSE_FILTER_ORDER - 1;
     }
 
-    private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, TokenEntity entity) {
+    private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, TokenEntity entity, String path) {
         String serviceName = httpRequest.getPath().subPath(3, 4).value();
         ServerHttpRequest request = httpRequest.mutate().header("context",
           GsonUtil.gson().toJson(new ContextInfo(entity.getUserId(), new HashSet<>(), new HashSet<>(),
             // TODO,path要使用权限中的path（包含有通配符）
-            new ContextRequest(serviceName, "method", "path"))))
-          .path(httpRequest.getPath().value().replace("/api/", "/api/wy-aggregation/")).build();
+            new ContextRequest(serviceName, httpRequest.getMethodValue(), path)))).build();
         return new ServerHttpRequestDecorator(request);
     }
 
