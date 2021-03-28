@@ -25,7 +25,10 @@ public class RequestUtils {
     }
 
     public static Optional<String> getHeader(ServerHttpRequest request, String key) {
-        return request.getHeaders().get(key).stream().findFirst();
+        if (request.getHeaders().containsKey(key)) {
+            return request.getHeaders().get(key).stream().findFirst();
+        }
+        return Optional.empty();
     }
 
 }

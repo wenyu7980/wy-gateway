@@ -9,7 +9,10 @@ spring:
     nacos:
       discovery:
         server-addr: ${nacos.discovery.address}
+        namespace: ${nacos.discovery.namespace}
+        group: ${nacos.discovery.group}
       config:
         server-addr: ${nacos.config.address}
-        file-extension: yaml
+        namespace: ${nacos.config.namespace}
         group: ${nacos.config.group}
+        file-extension: yaml

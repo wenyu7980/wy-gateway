@@ -39,10 +39,13 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         // 获取token
-        Optional<String> optional = RequestUtils.getHeader(request, "token");
         String serviceName = RequestUtils.getServiceName(request);
         String path = RequestUtils.getPathWithoutService(request);
         String method = RequestUtils.getMethod(request);
+        if (path.endsWith("v3/api-docs")) {
+            return chain.filter(exchange);
+        }
+        Optional<String> optional = RequestUtils.getHeader(request, "token");
         PermissionInternal permission = filterComponent.getPermission(serviceName, method, path)
           .orElseThrow(() -> new RuntimeException("接口不存在"));
         if (!permission.getCheck()) {
