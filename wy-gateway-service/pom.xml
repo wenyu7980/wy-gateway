@@ -34,17 +34,16 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.springfox</groupId>
             <artifactId>springfox-boot-starter</artifactId>
         </dependency>
         <dependency>
             <groupId>com.wenyu7980</groupId>
             <artifactId>wy-authentication-api</artifactId>
-            <version>1.0.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.wenyu7980</groupId>
-            <artifactId>wy-aggregation-api</artifactId>
             <version>1.0.0</version>
         </dependency>
         <dependency>

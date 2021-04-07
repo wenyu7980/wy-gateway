@@ -21,7 +21,7 @@ import java.security.NoSuchAlgorithmException;
  */
 @Api(tags = "rsa")
 @RestController
-@RequestMapping("login")
+@RequestMapping()
 public class RsaController {
     @Autowired
     private PublicKeyHandler publicKeyHandler;
