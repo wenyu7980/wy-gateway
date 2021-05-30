@@ -15,6 +15,8 @@ public class TokenEntity {
     private String random;
     /** 用户id */
     private String userId;
+    /** 系统管理员 */
+    private Boolean systemFlag;
     /** 过期时间 */
     private Long timeout;
     /** 所属部门 */
@@ -30,13 +32,14 @@ public class TokenEntity {
     }
 
     public TokenEntity(String token, String random, String userId, Long timeout, String departmentId,
-      Set<String> manageDepartments, Set<String> assistDepartments,
+      Boolean systemFlag, Set<String> manageDepartments, Set<String> assistDepartments,
       List<AuthenticationRolePermission> rolePermissions) {
         this.token = token;
         this.random = random;
         this.userId = userId;
         this.timeout = timeout;
         this.departmentId = departmentId;
+        this.systemFlag = systemFlag;
         this.manageDepartments = manageDepartments;
         this.assistDepartments = assistDepartments;
         this.rolePermissions = rolePermissions;
@@ -72,5 +75,9 @@ public class TokenEntity {
 
     public List<AuthenticationRolePermission> getRolePermissions() {
         return rolePermissions;
+    }
+
+    public Boolean getSystemFlag() {
+        return systemFlag;
     }
 }

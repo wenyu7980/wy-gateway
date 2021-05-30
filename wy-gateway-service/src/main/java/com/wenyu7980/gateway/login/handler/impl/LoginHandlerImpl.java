@@ -83,7 +83,7 @@ public class LoginHandlerImpl implements LoginHandler {
         }
         tokenService.save(
           new TokenEntity(result.getToken(), rsaKeyService.decode(login.getPublicKeyCode(), login.getRandomCode()),
-            result.getUserId(), 24 * 60 * 60L, user.getDepartment().getId(),
+            result.getUserId(), 24 * 60 * 60L, user.getDepartment().getId(), result.getSystemFlag(),
             user.getManageDepartments().stream().map(Department::getId).collect(Collectors.toSet()),
             user.getAssistDepartments().stream().map(Department::getId).collect(Collectors.toSet()),
             // 使用Array提高性能

@@ -27,7 +27,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -72,8 +71,9 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         if (!tokenEntity.isPresent()) {
             return exception(exchange, new TokenExpiredException("token无效"));
         }
+
         // 权限校验
-        if (!tokenEntity.get().getRolePermissions().stream().anyMatch(
+        if (!tokenEntity.get().getSystemFlag() && tokenEntity.get().getRolePermissions().stream().noneMatch(
           p -> Objects.equals(p.getMethod(), permission.getMethod()) && Objects
             .equals(p.getPath(), permission.getPath()) && Objects
             .equals(p.getServiceName(), permission.getServiceName()))) {
@@ -100,15 +100,16 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
 
     private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, TokenEntity entity, Permission permission) {
         ServerHttpRequest request = httpRequest.mutate().header("context", GsonUtil.gson().toJson(
-          new ContextInfo(entity.getUserId(), entity.getDepartmentId(), entity.getRolePermissions(),
+          new ContextInfo(entity.getUserId(), entity.getDepartmentId(), entity.getSystemFlag(),
+            entity.getRolePermissions(),
             new Request(permission.getServiceName(), permission.getMethod(), permission.getPath())))).build();
         return new ServerHttpRequestDecorator(request);
     }
 
     private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, Permission permission) {
         ServerHttpRequest request = httpRequest.mutate().header("context", GsonUtil.gson().toJson(
-          new ContextInfo(null, null, new ArrayList<>(),
-            new Request(permission.getServiceName(), permission.getMethod(), permission.getPath())))).build();
+          new ContextInfo(new Request(permission.getServiceName(), permission.getMethod(), permission.getPath()))))
+          .build();
         return new ServerHttpRequestDecorator(request);
     }
 }
