@@ -30,16 +30,16 @@
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.springfox</groupId>
+            <artifactId>springfox-boot-starter</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
         </dependency>
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-boot-starter</artifactId>
         </dependency>
         <dependency>
             <groupId>com.wenyu7980</groupId>
@@ -53,12 +53,22 @@
         </dependency>
         <dependency>
             <groupId>com.wenyu7980</groupId>
-            <artifactId>wy-common-context</artifactId>
+            <artifactId>wy-authentication-api</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.wenyu7980</groupId>
+            <artifactId>wy-organization-api</artifactId>
             <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.wenyu7980</groupId>
             <artifactId>wy-common-converter-kryo</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.wenyu7980</groupId>
+            <artifactId>wy-authentication-context</artifactId>
             <version>1.0.0</version>
         </dependency>
     </dependencies>

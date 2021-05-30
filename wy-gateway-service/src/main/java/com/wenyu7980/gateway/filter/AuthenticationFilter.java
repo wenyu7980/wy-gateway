@@ -1,14 +1,15 @@
 package com.wenyu7980.gateway.filter;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.wenyu7980.authentication.api.domain.PermissionInternal;
-import com.wenyu7980.authentication.api.service.PermissionInternalService;
-import com.wenyu7980.common.context.domain.ContextInfo;
-import com.wenyu7980.common.context.domain.ContextRequest;
+import com.wenyu7980.authentication.api.domain.Permission;
+import com.wenyu7980.authentication.context.model.ContextInfo;
+import com.wenyu7980.authentication.context.model.Request;
+import com.wenyu7980.common.exceptions.AbstractException;
+import com.wenyu7980.common.exceptions.ErrorResponseBody;
+import com.wenyu7980.common.exceptions.code401.InsufficientException;
 import com.wenyu7980.common.exceptions.code403.TokenExpiredException;
 import com.wenyu7980.common.exceptions.code404.NotFoundException;
 import com.wenyu7980.common.gson.adapter.GsonUtil;
+import com.wenyu7980.gateway.common.component.PermissionComponent;
 import com.wenyu7980.gateway.login.entity.TokenEntity;
 import com.wenyu7980.gateway.login.service.TokenService;
 import com.wenyu7980.gateway.util.RequestUtils;
@@ -17,17 +18,18 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.filter.NettyWriteResponseFilter;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  *
@@ -36,18 +38,10 @@ import java.util.stream.Collectors;
 @Component
 public class AuthenticationFilter implements GlobalFilter, Ordered {
     private static final String DOCS_PATH = "v3/api-docs";
-    private final static AntPathMatcher MATCHER = new AntPathMatcher();
     @Autowired
-    private WebClient.Builder builder;
-    @Autowired
-    private PermissionInternalService permissionInternalService;
+    private PermissionComponent permissionComponent;
     @Autowired
     private TokenService tokenService;
-    private final Cache<String, List<PermissionInternal>> CACHE;
-
-    private AuthenticationFilter() {
-        this.CACHE = Caffeine.newBuilder().build();
-    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -56,23 +50,36 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         if (path.endsWith(DOCS_PATH)) {
             return chain.filter(exchange);
         }
-        String serviceName = RequestUtils.getServiceName(request);
-        String method = RequestUtils.getMethod(request);
         // 获取token
-        Optional<String> optional = RequestUtils.getHeader(request, "token");
-        PermissionInternal permission = this.getPermission(serviceName, method, path)
-          .orElseThrow(() -> new NotFoundException("接口不存在"));
-        if (!permission.getCheck()) {
-            return chain.filter(exchange.mutate().request(
-              buildRequest(request, optional.flatMap(v -> tokenService.findOptionalById(v)).orElse(null), serviceName,
-                permission.getPath())).build());
+        Optional<String> token = RequestUtils.getHeader(request, "token");
+        Optional<Permission> optionalPermission = this.permissionComponent.getPermissionFromRequest(request);
+        if (!optionalPermission.isPresent()) {
+            return exception(exchange, new NotFoundException("接口不存在"));
         }
-        TokenEntity tokenEntity = tokenService
-          .findOptionalById(optional.orElseThrow(() -> new TokenExpiredException("未携带token")))
-          .orElseThrow(() -> new TokenExpiredException("token无效"));
+        Permission permission = optionalPermission.get();
+        if (!permission.getCheck()) {
+            TokenEntity entity = token.flatMap(v -> tokenService.findOptionalById(v)).orElse(null);
+            if (entity != null) {
+                return chain.filter(exchange.mutate().request(buildRequest(request, entity, permission)).build());
+            } else {
+                return chain.filter(exchange.mutate().request(buildRequest(request, permission)).build());
+            }
+        }
+        if (!token.isPresent()) {
+            return exception(exchange, new TokenExpiredException("未携带token"));
+        }
+        Optional<TokenEntity> tokenEntity = tokenService.findOptionalById(token.get());
+        if (!tokenEntity.isPresent()) {
+            return exception(exchange, new TokenExpiredException("token无效"));
+        }
         // 权限校验
-        return chain.filter(
-          exchange.mutate().request(buildRequest(request, tokenEntity, serviceName, permission.getPath())).build());
+        if (!tokenEntity.get().getRolePermissions().stream().anyMatch(
+          p -> Objects.equals(p.getMethod(), permission.getMethod()) && Objects
+            .equals(p.getPath(), permission.getPath()) && Objects
+            .equals(p.getServiceName(), permission.getServiceName()))) {
+            return exception(exchange, new InsufficientException("权限不足"));
+        }
+        return chain.filter(exchange.mutate().request(buildRequest(request, tokenEntity.get(), permission)).build());
     }
 
     @Override
@@ -80,39 +87,28 @@ public class AuthenticationFilter implements GlobalFilter, Ordered {
         return NettyWriteResponseFilter.WRITE_RESPONSE_FILTER_ORDER - 1;
     }
 
-    @Scheduled(fixedDelay = 60 * 1000)
-    private void refresh() {
-        this.CACHE.put("PERMISSIONS", this.getPermissions());
+    private Mono<Void> exception(ServerWebExchange exchange, AbstractException exception) {
+        ServerHttpResponse response = exchange.getResponse();
+        ErrorResponseBody body = new ErrorResponseBody();
+        body.setCodeMessage(exception.getCode(), exception.getMessage());
+        byte[] data = GsonUtil.gson().toJson(body).getBytes();
+        DataBuffer buffer = response.bufferFactory().wrap(data);
+        response.setStatusCode(HttpStatus.valueOf(exception.getStatus()));
+        response.getHeaders().add("Content-Type", "application/json;charset=UTF-8");
+        return response.writeWith(Mono.just(buffer));
     }
 
-    private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, TokenEntity entity, String serviceName,
-      String path) {
+    private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, TokenEntity entity, Permission permission) {
         ServerHttpRequest request = httpRequest.mutate().header("context", GsonUtil.gson().toJson(
-          new ContextInfo(entity.getUserId(), new HashSet<>(), new HashSet<>(),
-            new ContextRequest(serviceName, httpRequest.getMethodValue(), path)))).build();
+          new ContextInfo(entity.getUserId(), entity.getDepartmentId(), entity.getRolePermissions(),
+            new Request(permission.getServiceName(), permission.getMethod(), permission.getPath())))).build();
         return new ServerHttpRequestDecorator(request);
     }
 
-    private Optional<PermissionInternal> getPermission(String serviceName, String method, String path) {
-        return this.CACHE.get("PERMISSIONS", key -> new ArrayList<>()).stream().filter(
-          v -> Objects.equals(serviceName, v.getServiceName()) && Objects.equals(method, v.getMethod()) && MATCHER
-            .match(v.getPath(), path)).findFirst();
-    }
-
-    private List<PermissionInternal> getPermissions() {
-        return permissionInternalService.getList().stream().sorted((v1, v2) -> {
-            int serviceName = v1.getServiceName().compareTo(v2.getServiceName());
-            if (serviceName != 0) {
-                return serviceName;
-            }
-            int method = v1.getMethod().compareTo(v2.getMethod());
-            if (method != 0) {
-                return method;
-            }
-            if (MATCHER.match(v1.getPath(), v2.getPath())) {
-                return 1;
-            }
-            return -1;
-        }).collect(Collectors.toList());
+    private ServerHttpRequest buildRequest(ServerHttpRequest httpRequest, Permission permission) {
+        ServerHttpRequest request = httpRequest.mutate().header("context", GsonUtil.gson().toJson(
+          new ContextInfo(null, null, new ArrayList<>(),
+            new Request(permission.getServiceName(), permission.getMethod(), permission.getPath())))).build();
+        return new ServerHttpRequestDecorator(request);
     }
 }
