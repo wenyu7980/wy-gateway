@@ -39,7 +39,8 @@ public class AggregationComponentImpl implements AggregationComponent {
             final Permission permission = optional.get();
             List<Aggregation> aggregations = this.cache.get("AGGREGATIONS", key -> new ArrayList<>());
             return aggregations.stream().anyMatch(a -> Objects.equals(a.getMethod(), permission.getMethod()) && Objects
-              .equals(a.getServiceName(), permission.getMethod()) && Objects.equals(a.getPath(), permission.getPath()));
+              .equals(a.getServiceName(), permission.getServiceName()) && Objects
+              .equals(a.getPath(), permission.getPath()));
         }
         return false;
     }
